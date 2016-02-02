@@ -148,10 +148,12 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 -- define the model: prototypes for one timestep, then clone them in time
 protos = {}
 print('creating an LSTM-CNN with ' .. opt.num_layers .. ' layers')
-protos.rnn = LSTMTDNN.lstmtdnn(opt.rnn_size, opt.num_layers, opt.dropout, #loader.idx2word, 
+protos.rnn = LSTMTDNN.lstmtdnn(
+    opt.rnn_size, opt.num_layers, opt.dropout, #loader.idx2word,
     opt.word_vec_size, #loader.idx2char, opt.char_vec_size, opt.feature_maps, 
     opt.kernels, loader.max_word_l, opt.use_words, opt.use_chars, 
-    opt.batch_norm,opt.highway_layers, opt.hsm)
+    opt.batch_norm,opt.highway_layers, opt.hsm
+)
 -- training criterion (negative log likelihood)
 if opt.hsm > 0 then
     protos.criterion = nn.HLogSoftMax(mapping, opt.rnn_size)
@@ -204,6 +206,7 @@ protos.rnn:apply(get_layer)
 
 -- make a bunch of clones after flattening, as that reallocates memory
 -- not really sure how this part works
+--require'mobdebug'.start()
 clones = {}
 for name,proto in pairs(protos) do
     print('cloning ' .. name)
@@ -365,6 +368,7 @@ end
 
 
 -- start optimization here
+print('start optimization...')
 train_losses = {}
 val_losses = {}
 lr = opt.learning_rate -- starting learning rate which will be decayed
@@ -398,7 +402,7 @@ for i = 1, iterations do
         checkpoint.i = i
         checkpoint.epoch = epoch
         checkpoint.vocab = {loader.idx2word, loader.word2idx, loader.idx2char, loader.char2idx}
-	checkpoint.lr = lr
+	      checkpoint.lr = lr
         print('saving checkpoint to ' .. savefile)
         if epoch == opt.max_epochs or epoch % opt.save_every == 0 then
             torch.save(savefile, checkpoint)
@@ -409,16 +413,21 @@ for i = 1, iterations do
     if i % loader.split_sizes[1] == 0 and #val_losses > 2 then
         if val_losses[#val_losses-1] - val_losses[#val_losses] < opt.decay_when then
             lr = lr * opt.learning_rate_decay
-	end
-    end    
+	      end
+    end
 
     if i % opt.print_every == 0 then
-        print(string.format("%d/%d (epoch %.2f), train_loss = %6.4f", i, iterations, epoch, train_loss))
+        local str = string.format("%d/%d (epoch %.2f), train_loss = %6.4f",
+            i, iterations, epoch, train_loss)
+        if opt.time ~= 0 then
+            local tm = timer:time().real - time
+            str = str .. ", batch Time:" .. tm
+            str = str .. ", speed = " .. opt.batch_size/tm
+        end
+        print(str)
     end   
     if i % 10 == 0 then collectgarbage() end
-    if opt.time ~= 0 then
-       print("Batch Time:", timer:time().real - time)
-    end
+
 end
 
 --evaluate on full test set. this just uses the model from the last epoch

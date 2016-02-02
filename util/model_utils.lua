@@ -154,6 +154,7 @@ function model_utils.clone_many_times(net, T)
 
         clones[t] = clone
         collectgarbage()
+        xlua.progress(t, T)
     end
 
     mem:close()
